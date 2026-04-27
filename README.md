@@ -10,6 +10,13 @@ Parcelador_COLPOS is a QGIS plugin designed for the spatial optimization of agri
 
 This plugin is a core component of the doctoral research: "SYSTEM FOR AUTOMATED MONITORING AND SELECTIVITY OF CHAYOTE [Sechium Edule (jacq) sw.] DURING THE CROP CYCLE."
 
+*-*-*-*-*-Input Data Requirements*-*-*-*-*-
+To ensure accuracy in area calculations and plot delimitation, the following is recommended:
+
+Geometry: Polygon layers.
+
+Coordinate Reference System (CRS): The plugin has been successfully tested using EPSG:4326.
+
 2. Key Features
 Strip Mode (Franjas): Automatic generation of optimized crop rows based on strip thickness and transit aisle width.
 
@@ -61,6 +68,14 @@ Campo de aplicación: Agricultura de Precisión, Robótica Agrícola, Monitoreo 
 Parcelador_COLPOS es un complemento de QGIS diseñado para la optimización espacial de unidades de producción agrícola. Su objetivo principal es facilitar el diseño de recorridos de monitoreo y la delimitación de parcelas bajo criterios que sean de interés para los técnicos y productores que la usen
 
 Este plugin es parte de la investigación doctoral: "SISTEMA PARA MONITOREO Y SELECTIVIDAD AUTOMATIZADA DE CHAYOTE [Sechium Edule (jacq) sw.] DURANTE EL CICLO DE CULTIVO".
+
+*-*-*-*-*-Requisitos de los datos de entrada*-*-*-*-*-
+Para asegurar la precisión en el cálculo de áreas y la delimitación de las parcelas, se recomienda:
+
+Geometría: Capas de tipo Polígono (Polygon).
+Sistema de Referencia (SRC): * El plugin fue probado exitosamente en EPSG:4326.
+
+Nota técnica: Para cálculos de precisión métrica (distancias reales en campo), se recomienda proyectar la capa a la zona UTM correspondiente a tu ubicación (ej. WGS 84 / UTM zone 14N para gran parte de México) antes de ejecutar el proceso.
 
 2. Funcionalidades Clave
 Modo Franjas: Generación automática de surcos de cultivo optimizados según el grosor de la franja y el pasillo de tránsito.
