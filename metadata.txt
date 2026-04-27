@@ -3,7 +3,7 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Diseño de Unidades Agrícolas Vichique
+name=Diseño de Unidades Agrícolas COLPOS
 qgisMinimumVersion=3.0
 description=Optimización de trazado de unidades de producción para áreas determinadas 
 version=0.1
