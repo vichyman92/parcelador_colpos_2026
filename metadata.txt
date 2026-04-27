@@ -13,8 +13,8 @@ email=vichique.manuel@colpos.mx
 about=Agricultural production unit layout optimization using Hilbert Curves and strip-cropping designs for precision farming//////Este plugin permite una visualización rápida de las unidades de producción que pueden ser permisibles en una capa determinada por el usuario. La finalidad es ayudar a estimar costos de manejo y mano de obra con base a la experiencia de los técnicos y productores que la usen.
 
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/vichyman92/parcelador_colpos_2026/issues
+repository=https://github.com/vichyman92/parcelador_colpos_2026.git
 # End of mandatory metadata
 
 # Recommended items:
@@ -26,7 +26,7 @@ hasProcessingProvider=no
 # Tags are comma separated with spaces allowed
 tags=python
 
-homepage=http://homepage
+homepage=https://github.com/vichyman92/parcelador_colpos_2026.git
 category=Plugins
 icon=icon.png
 # experimental flag
