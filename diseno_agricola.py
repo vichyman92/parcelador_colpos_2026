@@ -11,7 +11,7 @@ import math
 import os.path
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon, QColor
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QWidget
 
 # Consolidated imports to avoid NameError and conflicts
 from qgis.core import (
@@ -99,6 +99,9 @@ class Parcelador_COLPOS:
             self.iface.removeToolBarIcon(action)
 
     def run(self):
+        console_widget = self.iface.mainWindow().findChild(QWidget, 'PythonConsole')
+        if console_widget:
+            console_widget.setVisible(True)
         if self.first_start:
             self.first_start = False
             self.dlg = Parcelador_COLPOSDialog()
@@ -121,7 +124,8 @@ class Parcelador_COLPOS:
                 return
 
             # Cleanup existing layers
-            for n in ["Hilbert_Path", "Unit_Centers", "Etiquetas_Mosaicos", "Etiquetas_Franjas","Capa_Coordenadas"]:
+            for n in ["Hilbert_Path", "Unit_Centers", "Etiquetas_Mosaicos", "Etiquetas_Franjas", "Capa_Coordenadas",
+                      "Layout_Mosaicos", "Layout_Franjas"]:
                 for c in QgsProject.instance().mapLayersByName(n):
                     QgsProject.instance().removeMapLayer(c.id())
 
