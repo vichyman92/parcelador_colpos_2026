@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Diseño de Unidades Agrícolas Vichique</string>
+   <string>Diseño de Unidades Agrícolas COLPOS</string>
   </property>
   <widget class="QDialogButtonBox" name="button_box">
    <property name="geometry">
@@ -162,7 +162,7 @@
    </widget>
    <widget class="QDoubleSpinBox" name="doubleSpinBox_grosor">
     <property name="minimum">
-     <double>0.200000000000000</double>
+     <double>0.010000000000000</double>
     </property>
     <property name="maximum">
      <double>1000.000000000000000</double>
@@ -188,7 +188,7 @@
    </widget>
    <widget class="QDoubleSpinBox" name="doubleSpinBox_pasillos">
     <property name="minimum">
-     <double>0.200000000000000</double>
+     <double>0.010000000000000</double>
     </property>
     <property name="maximum">
      <double>10000.000000000000000</double>
