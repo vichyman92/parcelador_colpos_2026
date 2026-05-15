@@ -3,18 +3,18 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Diseño de Unidades Agrícolas Colpos
+name=Diseño de Unidades Agrícolas COLPOS
 qgisMinimumVersion=3.0
 description=Optimización de trazado de unidades de producción para áreas determinadas 
-version=0.3
+version=0.4
 author=Manuel Vichique A
 email=vichique.manuel@colpos.mx
 
-about=Agricultural production unit layout optimization using Hilbert Curves and strip-cropping designs for precision farming/
+about=Agricultural production unit layout optimization using Hilbert Curves and strip-cropping designs for precision farming
 
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/vichyman92/parcelador_colpos_2026/issues
+repository=https://github.com/vichyman92/parcelador_colpos_2026.git
 # End of mandatory metadata
 
 # Recommended items:
@@ -26,7 +26,7 @@ hasProcessingProvider=no
 # Tags are comma separated with spaces allowed
 tags=python
 
-homepage=http://homepage
+homepage=https://github.com/vichyman92/parcelador_colpos_2026.git
 category=Plugins
 icon=icon.png
 # experimental flag
