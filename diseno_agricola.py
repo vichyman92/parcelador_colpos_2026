@@ -2,18 +2,17 @@
 """
 /***************************************************************************
  Parcelador_COLPOS
-                                 A QGIS plugin
+                                  A QGIS plugin
  Agricultural production unit layout optimization for precision farming.
  ***************************************************************************/
 """
 
 import math
 import os.path
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
+from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QAction, QWidget
 
-# Consolidated imports to avoid NameError and conflicts
 from qgis.core import (
     QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsField,
     QgsLineSymbol, QgsFillSymbol, QgsSingleSymbolRenderer,
@@ -23,32 +22,79 @@ from qgis.core import (
 )
 
 from qgis import processing
-from .resources import *
+try:
+    from .resources import *
+except ImportError:
+    pass
+
 from .diseno_agricola_dialog import Parcelador_COLPOSDialog
+
 
 class Parcelador_COLPOS:
     """Plugin implementation for optimized agricultural plot design."""
 
-    def crear_geometria(self, p_centro, tipo, r_deg, ang_rot):
-        """Generates rotatable geometric primitives (Square, Triangle, Circle)."""
-        ang_rad = math.radians(-ang_rot)
-        if tipo == "Cuadrado":
-            puntos = [(-r_deg, -r_deg), (r_deg, -r_deg), (r_deg, r_deg), (-r_deg, r_deg)]
-        elif tipo in ["Triángulo", "Triangulo"]:
-            puntos = [(0, r_deg), (-r_deg, -r_deg / 2), (r_deg, -r_deg / 2)]
+    def __init__(self, iface):
+        self.iface = iface
+        self.plugin_dir = os.path.dirname(__file__)
+        self.actions = []
+        self.menu = self.tr(u'&Diseño de Unidades Agrícolas Colpos')
+        self.first_start = None
+        self.dlg = None
+
+    def tr(self, message):
+        """Translate strings."""
+        return QCoreApplication.translate('Parcelador_COLPOS', message)
+
+    def add_action(self, icon_path, text, callback, **kwargs):
+        """Adds action to QGIS menu/toolbar."""
+        icon = QIcon(icon_path)
+        action = QAction(icon, text, kwargs.get('parent'))
+        action.triggered.connect(callback)
+        self.iface.addToolBarIcon(action)
+        self.iface.addPluginToMenu(self.menu, action)
+        self.actions.append(action)
+        return action
+
+    def initGui(self):
+        """Initialize GUI elements."""
+        icon_path = ':/plugins/parcelador_colpos_2026/icon.png'
+        self.add_action(
+            icon_path,
+            text=self.tr(u'Parcelero Colpos'),
+            callback=self.run,
+            parent=self.iface.mainWindow()
+        )
+        self.first_start = True
+
+    def unload(self):
+        """Removes plugin from QGIS."""
+        for action in self.actions:
+            self.iface.removePluginMenu(self.menu, action)
+            self.iface.removeToolBarIcon(action)
+
+    def create_geometry(self, p_center, p_type, r_deg, rot_angle):
+        """Generates rotatable geometric primitives."""
+        ang_rad = math.radians(-rot_angle)
+        if p_type == "Cuadrado":
+            points = [
+                (-r_deg, -r_deg), (r_deg, -r_deg),
+                (r_deg, r_deg), (-r_deg, r_deg)
+            ]
+        elif p_type in ["Triángulo", "Triangulo"]:
+            points = [(0, r_deg), (-r_deg, -r_deg / 2), (r_deg, -r_deg / 2)]
         else:
-            return QgsGeometry.fromPointXY(p_centro).buffer(r_deg, 24)
+            return QgsGeometry.fromPointXY(p_center).buffer(r_deg, 24)
 
         vertices = []
-        for dx, dy in puntos:
-            ex = p_centro.x() + dx * math.cos(ang_rad) - dy * math.sin(ang_rad)
-            ey = p_centro.y() + dx * math.sin(ang_rad) + dy * math.cos(ang_rad)
+        for dx, dy in points:
+            ex = p_center.x() + dx * math.cos(ang_rad) - dy * math.sin(ang_rad)
+            ey = p_center.y() + dx * math.sin(ang_rad) + dy * math.cos(ang_rad)
             vertices.append(QgsPointXY(ex, ey))
         return QgsGeometry.fromPolygonXY([vertices])
 
-    def rotar_punto(self, px, py, cx, cy, angulo):
+    def rotate_point(self, px, py, cx, cy, angle):
         """Rotates an individual coordinate around a pivot point."""
-        rad = math.radians(-angulo)
+        rad = math.radians(-angle)
         nx = cx + (px - cx) * math.cos(rad) - (py - cy) * math.sin(rad)
         ny = cy + (px - cx) * math.sin(rad) + (py - cy) * math.cos(rad)
         return QgsPointXY(nx, ny)
@@ -60,7 +106,8 @@ class Parcelador_COLPOS:
             rx = 1 & (t // 2)
             ry = 1 & (t ^ rx)
             if ry == 0:
-                if rx == 1: x, y = s - 1 - y, s - 1 - x
+                if rx == 1:
+                    x, y = s - 1 - y, s - 1 - x
                 x, y = y, x
             x += s * rx
             y += s * ry
@@ -68,319 +115,380 @@ class Parcelador_COLPOS:
             s *= 2
         return x, y
 
-    def __init__(self, iface):
-        self.iface = iface
-        self.plugin_dir = os.path.dirname(__file__)
-        self.actions = []
-        self.menu = self.tr(u'&Diseño de Unidades Agrícolas Vichique')
-        self.first_start = None
-
-    def tr(self, message):
-        return QCoreApplication.translate('Parcelador_COLPOS', message)
-
-    def add_action(self, icon_path, text, callback, **kwargs):
-        icon = QIcon(icon_path)
-        action = QAction(icon, text, kwargs.get('parent'))
-        action.triggered.connect(callback)
-        self.iface.addToolBarIcon(action)
-        self.iface.addPluginToMenu(self.menu, action)
-        self.actions.append(action)
-        return action
-
-    def initGui(self):
-        icon_path = ':/plugins/diseno_agricola/icon.png'
-        self.add_action(icon_path, text=self.tr(u'Parcelero_Colpos'),
-                        callback=self.run, parent=self.iface.mainWindow())
-        self.first_start = True
-
-    def unload(self):
-        for action in self.actions:
-            self.iface.removePluginMenu(self.menu, action)
-            self.iface.removeToolBarIcon(action)
-
     def run(self):
-        console_widget = self.iface.mainWindow().findChild(QWidget, 'PythonConsole')
-        if console_widget:
-            console_widget.setVisible(True)
+        """Main execution logic."""
         if self.first_start:
             self.first_start = False
             self.dlg = Parcelador_COLPOSDialog()
 
         if self.dlg.exec_():
             layer = self.dlg.mMapLayerComboBox.currentLayer()
-            modo = self.dlg.comboBox_modo.currentText()
-            figura = self.dlg.comboBox_geometria.currentText()
-            metros = self.dlg.doubleSpinBox_grosor.value()
-            pasillo = self.dlg.doubleSpinBox_pasillos.value()
-            angulo = self.dlg.doubleSpinBox_angulo.value()
-            densidad = int(self.dlg.doubleSpinBox_hilbert.value())
+            mode = self.dlg.comboBox_modo.currentText()
+            shape = self.dlg.comboBox_geometria.currentText()
+            thickness = self.dlg.doubleSpinBox_grosor.value()
+            aisle = self.dlg.doubleSpinBox_pasillos.value()
+            angle = self.dlg.doubleSpinBox_angulo.value()
+            density = int(self.dlg.doubleSpinBox_hilbert.value())
             pct_threshold = self.dlg.doubleSpinBox_descarte.value()
             draw_path = self.dlg.checkBox_ruta.isChecked()
             draw_centers = self.dlg.checkBox_centros.isChecked()
             draw_coords = self.dlg.checkBox_coordenadas.isChecked()
 
             if not layer:
-                self.iface.messageBar().pushMessage("Error", "Invalid Layer", level=Qgis.Warning)
+                self.iface.messageBar().pushMessage(
+                    "Error", "Invalid Layer", level=Qgis.Warning
+                )
                 return
 
-            # Cleanup existing layers
-            for n in ["Hilbert_Path", "Unit_Centers", "Etiquetas_Mosaicos", "Etiquetas_Franjas", "Capa_Coordenadas",
-                      "Layout_Mosaicos", "Layout_Franjas"]:
-                for c in QgsProject.instance().mapLayersByName(n):
+            # Limpieza automática de capas previas
+            cleanup_layers = [
+                "Hilbert_Path", "Unit_Centers", "Labels_Mosaics",
+                "Labels_Strips", "Coord_Layer", "Layout_Mosaics",
+                "Layout_Strips", "GPS_Guide_Lines"
+            ]
+            for name in cleanup_layers:
+                for c in QgsProject.instance().mapLayersByName(name):
                     QgsProject.instance().removeMapLayer(c.id())
 
-            feat_parcela = layer.selectedFeatures()[0] if layer.selectedFeatures() else next(layer.getFeatures())
-            geom_parcela = feat_parcela.geometry()
-            pivot_point = geom_parcela.centroid().asPoint()
-            area_total_m2 = geom_parcela.area() * (111000 ** 2)
+            feat_parcel = (layer.selectedFeatures()[0] if
+                           layer.selectedFeatures() else
+                           next(layer.getFeatures()))
+            geom_parcel = feat_parcel.geometry()
+            pivot = geom_parcel.centroid().asPoint()
+            total_area_m2 = geom_parcel.area() * (111000 ** 2)
 
-            if modo == "Franjas":
-                capa_bloques = QgsVectorLayer("Polygon?crs=EPSG:4326", "Temp_Blocks", "memory")
-                pr_b = capa_bloques.dataProvider()
-                n_grid = 2 ** densidad
-                dist_entre_surcos = metros + pasillo
-                r_deg = (metros / 2) / 111000.0
+            if mode == "Franjas":
+                capa_blocks = QgsVectorLayer(
+                    "Polygon?crs=EPSG:4326", "Temp_Blocks", "memory"
+                )
+                pr_b = capa_blocks.dataProvider()
+                n_grid = 2 ** density
+                row_dist = thickness + aisle
+                r_deg = (thickness / 2) / 111000.0
 
-                # --- BASE GEOMETRY GENERATION ---
+                capa_lines = QgsVectorLayer(
+                    "LineString?crs=EPSG:4326", "GPS_Guide_Lines", "memory"
+                )
+                pr_l = capa_lines.dataProvider()
+                pr_l.addAttributes([QgsField("Row_ID", QVariant.Int)])
+                capa_lines.updateFields()
+
                 for i in range(-n_grid // 2, n_grid // 2):
+                    line_pts = []
                     for j in range(-n_grid // 2, n_grid // 2):
-                        bx_m = i * dist_entre_surcos
-                        by_m = j * metros
-                        p_c = self.rotar_punto(pivot_point.x() + bx_m / 111000.0,
-                                               pivot_point.y() + by_m / 111000.0,
-                                               pivot_point.x(), pivot_point.y(), angulo)
-                        unit_geom = self.crear_geometria(p_c, "Cuadrado", r_deg, angulo)
-                        if unit_geom.intersects(geom_parcela):
+                        bx_m = i * row_dist
+                        by_m = j * thickness
+                        p_c = self.rotate_point(
+                            pivot.x() + bx_m / 111000.0,
+                            pivot.y() + by_m / 111000.0,
+                            pivot.x(), pivot.y(), angle
+                        )
+                        unit_geom = self.create_geometry(
+                            p_c, "Cuadrado", r_deg, angle
+                        )
+                        if unit_geom.intersects(geom_parcel):
                             f = QgsFeature()
                             f.setGeometry(unit_geom)
                             pr_b.addFeature(f)
+                            line_pts.append(p_c)
 
-                # --- GEOSPATIAL PROCESSING (LOGIC CHAIN) ---
-                # 1. Buffer to merge fragments
-                buf_1 = \
-                processing.run("native:buffer", {'INPUT': capa_bloques, 'DISTANCE': 0.0000001, 'OUTPUT': 'memory:buf'})[
-                    'OUTPUT']
-                # 2. Dissolve to create long strips
-                res_diss = processing.run("native:dissolve", {'INPUT': buf_1, 'FIELD': [], 'OUTPUT': 'memory:diss'})[
-                    'OUTPUT']
-                # 3. Clip with plot boundary
-                res_clip = \
-                processing.run("native:clip", {'INPUT': res_diss, 'OVERLAY': layer, 'OUTPUT': 'memory:clip'})['OUTPUT']
-                # 4. Explode multipart to single parts
-                capa_result = \
-                processing.run("native:multiparttosingleparts", {'INPUT': res_clip, 'OUTPUT': 'memory:Layout_Franjas'})[
-                    'OUTPUT']
+                    if len(line_pts) > 1:
+                        fl = QgsFeature()
+                        fl.setGeometry(QgsGeometry.fromPolylineXY(line_pts))
+                        pr_l.addFeature(fl)
 
-                # --- ATTRIBUTE CONFIGURATION ---
-                capa_result.dataProvider().addAttributes([
-                    QgsField("ID_Surco", QVariant.Int),
+                # Procesamiento espacial de franjas
+                buf = processing.run("native:buffer", {
+                    'INPUT': capa_blocks,
+                    'DISTANCE': 0.00000001,
+                    'OUTPUT': 'memory:buf'
+                })['OUTPUT']
+                diss = processing.run("native:dissolve", {
+                    'INPUT': buf,
+                    'FIELD': [],
+                    'OUTPUT': 'memory:diss'
+                })['OUTPUT']
+                clip = processing.run("native:clip", {
+                    'INPUT': diss,
+                    'OVERLAY': layer,
+                    'OUTPUT': 'memory:clip'
+                })['OUTPUT']
+                res_layer = processing.run("native:multiparttosingleparts", {
+                    'INPUT': clip,
+                    'OUTPUT': 'memory:Layout_Strips'
+                })['OUTPUT']
+
+                res_layer.dataProvider().addAttributes([
+                    QgsField("Row_ID", QVariant.Int),
                     QgsField("Area_m2", QVariant.Double)
                 ])
-                capa_result.updateFields()
+                res_layer.updateFields()
 
-                # --- STATISTICAL CALCULATION AND CLEANUP ---
-                stats = {"aptas": 0, "area_util": 0.0}
-                capa_result.startEditing()
-                for feature in capa_result.getFeatures():
+                stats = {"fit": 0, "cult_area": 0.0}
+                res_layer.startEditing()
+                for feature in res_layer.getFeatures():
                     f_area = feature.geometry().area() * (111000 ** 2)
-                    # Discard filter (avoids tiny fragments at boundaries)
-                    if f_area > (metros * 1.5):
-                        stats["aptas"] += 1
-                        stats["area_util"] += f_area
-                        feature.setAttributes([stats["aptas"], round(f_area, 2)])
-                        capa_result.updateFeature(feature)
+                    if f_area > (thickness * 2):
+                        stats["fit"] += 1
+                        stats["cult_area"] += f_area
+                        feature.setAttributes([stats["fit"], round(f_area, 2)])
+                        res_layer.updateFeature(feature)
                     else:
-                        capa_result.deleteFeature(feature.id())
-                capa_result.commitChanges()
+                        res_layer.deleteFeature(feature.id())
+                res_layer.commitChanges()
 
-                # --- RENDERING AND LABELS ---
-                self.crear_capa_etiquetas(capa_result, "ID_Surco", "Etiquetas_Franjas")
-                QgsProject.instance().addMapLayer(capa_result)
+                aisle_area = total_area_m2 - stats["cult_area"]
+                efficiency = (stats["cult_area"] / total_area_m2) * 100
 
-                # --- FINAL CONSOLE REPORT ---
-                eff = (stats["area_util"] / area_total_m2) * 100 if area_total_m2 > 0 else 0
-                print("\n" + "=" * 40)
-                print(f"{'REPORT: ' + modo.upper():^40}")
-                print("=" * 40)
-                print(f"Total Area:      {area_total_m2:10.2f} m²")
-                print(f"Useful Area:     {stats['area_util']:10.2f} m²")
-                print(f"Efficiency:      {eff:10.2f} %")
-                print(f"Total Rows:      {stats['aptas']:>10}")
-                print("=" * 40)
+                # Renderizado de la malla de franjas
+                mesh_props = {
+                    'color': '0,255,0,255',
+                    'outline_color': '0,150,0,255',
+                    'outline_width': '0.4',
+                    'style': 'cross'
+                }
+                mesh_sym = QgsFillSymbol.createSimple(mesh_props)
+                res_layer.setRenderer(QgsSingleSymbolRenderer(mesh_sym))
+                QgsProject.instance().addMapLayer(res_layer)
+
+                # Líneas guía GPS
+                gps_clip = processing.run("native:clip", {
+                    'INPUT': capa_lines,
+                    'OVERLAY': layer,
+                    'OUTPUT': 'memory:GPS_Lines'
+                })['OUTPUT']
+                gps_sym = QgsLineSymbol.createSimple({
+                    'color': '255,165,0,255',
+                    'width': '1.2',
+                    'line_style': 'dash'
+                })
+                gps_clip.setRenderer(QgsSingleSymbolRenderer(gps_sym))
+                QgsProject.instance().addMapLayer(gps_clip)
+
+                print("\n" + "═" * 45)
+                print(f"║ {'TECHNICAL REPORT: STRIPS':^41} ║")
+                print("═" * 45)
+                print(f"  Total Plot Area:   {total_area_m2:10.2f} m²")
+                print(f"  Cultivation Area:  {stats['cult_area']:10.2f} m²")
+                print(f"  Aisle Area:        {aisle_area:10.2f} m²")
+                print(f"  Efficiency:        {efficiency:10.2f} %")
+                print(f"  Total Rows:        {stats['fit']:>10}")
+                print("═" * 45)
 
             else:
-                # Mosaics Mode
-                stats = {"aptas": 0, "area_util": 0.0, "no_aptas": 0}
-                n_grid = 2 ** densidad
-                jump_dist = metros + pasillo
-                r_deg = (metros / 2) / 111000.0
-                area_ref = metros ** 2 if figura == "Cuadrado" else (math.pi * (metros / 2) ** 2)
+                # Lógica de Mosaicos (Fractal de Hilbert)
+                stats = {
+                    "optimal": 0,    # Mosaicos verdes (>99.9%)
+                    "suitable": 0,   # Mosaicos amarillos (>= pct_threshold)
+                    "discard": 0,    # Mosaicos rojos (< pct_threshold)
+                    "util_area": 0.0 # Área acumulada útil
+                }
+                
+                n_grid = 2 ** density
+                step = thickness + aisle
+                r_deg = (thickness / 2) / 111000.0
+                area_ref = (thickness ** 2 if shape == "Cuadrado" else
+                            (math.pi * (thickness / 2) ** 2))
 
-                capa_t = QgsVectorLayer("Polygon?crs=EPSG:4326", f"Layout_{modo}", "memory")
-                capa_c = QgsVectorLayer("Point?crs=EPSG:4326", "Unit_Centers", "memory")
+                capa_t = QgsVectorLayer(
+                    "Polygon?crs=EPSG:4326", "Layout_Mosaics", "memory"
+                )
+                capa_c = QgsVectorLayer(
+                    "Point?crs=EPSG:4326", "Unit_Centers", "memory"
+                )
 
                 for c in [capa_t, capa_c]:
-                    c.dataProvider().addAttributes([QgsField("ID_Unidad", QVariant.Int), QgsField("status", QVariant.String), QgsField("pct_area", QVariant.Double)])
+                    c.dataProvider().addAttributes([
+                        QgsField("Unit_ID", QVariant.Int),
+                        QgsField("status", QVariant.String),
+                        QgsField("pct_area", QVariant.Double)
+                    ])
                     c.updateFields()
 
                 path_pts = []
                 for d in range(n_grid * n_grid):
                     hx, hy = self.d2xy(n_grid, d)
-                    off_x, off_y = (hx - n_grid / 2) * jump_dist, (hy - n_grid / 2) * jump_dist
-                    p_c = self.rotar_punto(pivot_point.x() + off_x / 111000.0, pivot_point.y() + off_y / 111000.0, pivot_point.x(), pivot_point.y(), angulo)
-                    unit_geom = self.crear_geometria(p_c, figura, r_deg, angulo)
+                    ox = (hx - n_grid / 2) * step
+                    oy = (hy - n_grid / 2) * step
+                    p_c = self.rotate_point(
+                        pivot.x() + ox / 111000.0,
+                        pivot.y() + oy / 111000.0,
+                        pivot.x(), pivot.y(), angle
+                    )
+                    u_geom = self.create_geometry(p_c, shape, r_deg, angle)
 
-                    if unit_geom.intersects(geom_parcela):
-                        inter = unit_geom.intersection(geom_parcela)
+                    if u_geom.intersects(geom_parcel):
+                        inter = u_geom.intersection(geom_parcel)
                         f_area = inter.area() * (111000 ** 2)
                         pct = (f_area / area_ref) * 100
-                        status = "Optimal (Green)" if pct >= 99.9 else ("Suitable (Yellow)" if pct >= pct_threshold else "Discarded (Red)")
+                        
+                        # Clasificación según el semáforo de porcentaje
+                        if pct >= 99.9:
+                            status = "Optimal (Green)"
+                            stats["optimal"] += 1
+                        elif pct >= pct_threshold:
+                            status = "Suitable (Yellow)"
+                            stats["suitable"] += 1
+                        else:
+                            status = "Discarded (Red)"
+                            stats["discard"] += 1
 
-                        id_numero = None
+                        u_id = None
                         if pct >= pct_threshold:
-                            stats["aptas"] += 1
-                            stats["area_util"] += f_area
-                            id_numero = stats["aptas"]
+                            stats["util_area"] += f_area
+                            u_id = stats["optimal"] + stats["suitable"]
                             path_pts.append(p_c)
                             if draw_centers:
-                                fc = QgsFeature(); fc.setGeometry(QgsGeometry.fromPointXY(p_c))
-                                fc.setAttributes([id_numero, status, round(pct, 1)])
+                                fc = QgsFeature()
+                                fc.setGeometry(QgsGeometry.fromPointXY(p_c))
+                                fc.setAttributes([u_id, status, round(pct, 1)])
                                 capa_c.dataProvider().addFeature(fc)
-                        else:
-                            stats["no_aptas"] += 1
 
-                        f = QgsFeature(); f.setGeometry(inter); f.setAttributes([id_numero, status, round(pct, 1)])
+                        f = QgsFeature()
+                        f.setGeometry(inter)
+                        f.setAttributes([u_id, status, round(pct, 1)])
                         capa_t.dataProvider().addFeature(f)
 
                 if draw_path and len(path_pts) > 1:
-                    capa_r = QgsVectorLayer("LineString?crs=EPSG:4326", "Hilbert_Path", "memory")
-                    fr = QgsFeature(); fr.setGeometry(QgsGeometry.fromPolylineXY(path_pts))
+                    capa_r = QgsVectorLayer(
+                        "LineString?crs=EPSG:4326", "Hilbert_Path", "memory"
+                    )
+                    fr = QgsFeature()
+                    fr.setGeometry(QgsGeometry.fromPolylineXY(path_pts))
                     capa_r.dataProvider().addFeature(fr)
-                    capa_r.setRenderer(QgsSingleSymbolRenderer(QgsLineSymbol.createSimple({'color': '255,120,0,255', 'width': '1.0'})))
+                    capa_r.setRenderer(QgsSingleSymbolRenderer(
+                        QgsLineSymbol.createSimple({
+                            'color': '255,120,0,255', 'width': '1.0'
+                        })
+                    ))
                     QgsProject.instance().addMapLayer(capa_r)
 
-                self.aplicar_estilo_semaforo(capa_t)
-                self.crear_capa_etiquetas(capa_t, "ID_Unidad", "Etiquetas_Mosaicos")
+                self.apply_status_style(capa_t)
+                self.create_label_layer(capa_t, "Unit_ID", "Labels_Mosaics")
                 QgsProject.instance().addMapLayer(capa_t)
                 if draw_centers:
                     QgsProject.instance().addMapLayer(capa_c)
                 if draw_coords:
-                    self.crear_capa_coordenadas(capa_c)
+                    self.create_coord_layer(capa_c)
 
-                # --- 5. FINAL CONSOLE REPORT ---
-                eff = (stats["area_util"] / area_total_m2) * 100 if area_total_m2 > 0 else 0
+                # Reporte técnico completo para Mosaicos
+                total_units = stats["optimal"] + stats["suitable"]
+                unused_area_m2 = total_area_m2 - stats["util_area"]
+                efficiency = (stats["util_area"] / total_area_m2) * 100
 
-                # Define labels based on mode for report clarity
-                label_units = "Total Rows:" if modo == "Franjas" else "Suitable Units (Mosaics):"
+                print("\n" + "═" * 45)
+                print(f"║ {'TECHNICAL REPORT: MOSAICS':^41} ║")
+                print("═" * 45)
+                print(f"  Total Plot Area:   {total_area_m2:10.2f} m²")
+                print(f"  Cultivation Area:  {stats['util_area']:10.2f} m²")
+                print(f"  Unused/Aisle Area: {unused_area_m2:10.2f} m²")
+                print(f"  Efficiency:        {efficiency:10.2f} %")
+                print("─" * 45)
+                print(f"  Optimal Units (Green):   {stats['optimal']:>6}")
+                print(f"  Suitable Units (Yellow):  {stats['suitable']:>6}")
+                print(f"  Discarded Units (Red):   {stats['discard']:>6}")
+                print(f"  Total Valid Units:       {total_units:>6}")
+                print("═" * 45)
 
-                print("\n" + "=" * 40)
-                print(f"{'REPORT: ' + modo.upper():^40}")
-                print("=" * 40)
-                print(f"Total Area:      {area_total_m2:10.2f} m²")
-                print(f"Useful Area:     {stats['area_util']:10.2f} m²")
-                print(f"Efficiency:      {eff:10.2f} %")
-                print(f"{label_units:<25} {stats['aptas']:>10}")
-
-                if modo != "Franjas":
-                    print(f"Discarded Units:          {stats['no_aptas']:>10}")
-
-                print("=" * 40)
-
-                self.iface.messageBar().pushMessage("COLPOS", f"{modo} process successfully completed",
-                                                    level=Qgis.Success)
-
-    def crear_capa_etiquetas(self, capa_origen, campo_id, nombre_capa):
-        """Creates a memory layer for labeling centroids of the production units."""
-        capa_lbls = QgsVectorLayer("Point?crs=EPSG:4326", nombre_capa, "memory")
-        capa_lbls.dataProvider().addAttributes([QgsField("Label_ID", QVariant.String)])
-        capa_lbls.updateFields()
+    def create_label_layer(self, source_layer, field_id, layer_name):
+        """Creates labeling layer."""
+        lbl_layer = QgsVectorLayer("Point?crs=EPSG:4326", layer_name, "memory")
+        lbl_layer.dataProvider().addAttributes([
+            QgsField("Label_ID", QVariant.String)
+        ])
+        lbl_layer.updateFields()
 
         feats = []
-        for feat in capa_origen.getFeatures():
-            val = feat[campo_id]
+        for feat in source_layer.getFeatures():
+            val = feat[field_id]
             if val is not None and val != NULL:
-                f = QgsFeature(); f.setGeometry(feat.geometry().centroid())
-                f.setAttributes([str(val)]); feats.append(f)
-        capa_lbls.dataProvider().addFeatures(feats)
+                f = QgsFeature()
+                f.setGeometry(feat.geometry().centroid())
+                f.setAttributes([str(val)])
+                feats.append(f)
+        lbl_layer.dataProvider().addFeatures(feats)
 
         settings = QgsPalLayerSettings()
         settings.fieldName = "Label_ID"
         settings.placement = QgsPalLayerSettings.AroundPoint
-        txt = QgsTextFormat(); txt.setSize(12); txt.setColor(QColor("black"))
-        buff = QgsTextBufferSettings(); buff.setEnabled(True); buff.setSize(1)
+        txt = QgsTextFormat()
+        txt.setSize(12)
+        txt.setColor(QColor("black"))
+        buff = QgsTextBufferSettings()
+        buff.setEnabled(True)
+        buff.setSize(1)
         txt.setBuffer(buff)
         settings.setFormat(txt)
-        capa_lbls.setLabeling(QgsVectorLayerSimpleLabeling(settings))
-        capa_lbls.setLabelsEnabled(True)
-        capa_lbls.renderer().symbol().setSize(0)
-        QgsProject.instance().addMapLayer(capa_lbls)
+        lbl_layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+        lbl_layer.setLabelsEnabled(True)
+        lbl_layer.renderer().symbol().setSize(0)
+        QgsProject.instance().addMapLayer(lbl_layer)
 
-    def aplicar_estilo_semaforo(self, layer):
-        """Applies a categorized semaphore-style symbology (Red/Yellow/Green)."""
+    def apply_status_style(self, layer):
+        """Applies semaphore style."""
         props = {'outline_color': 'white', 'style': 'solid'}
         cats = [
-            QgsRendererCategory("Optimal (Green)", QgsFillSymbol.createSimple({'color': '76,175,80,150', **props}), "Optimal (>99%)"),
-            QgsRendererCategory("Suitable (Yellow)", QgsFillSymbol.createSimple({'color': '255,235,59,150', **props}), "Suitable (Cut)"),
-            QgsRendererCategory("Discarded (Red)", QgsFillSymbol.createSimple({'color': '244,67,54,150', **props}), "Discarded")
+            QgsRendererCategory(
+                "Optimal (Green)",
+                QgsFillSymbol.createSimple({'color': '76,175,80,150', **props}),
+                "Optimal (>99%)"
+            ),
+            QgsRendererCategory(
+                "Suitable (Yellow)",
+                QgsFillSymbol.createSimple(
+                    {'color': '255,235,59,150', **props}
+                ),
+                "Suitable (Cut)"
+            ),
+            QgsRendererCategory(
+                "Discarded (Red)",
+                QgsFillSymbol.createSimple({'color': '244,67,54,150', **props}),
+                "Discarded"
+            )
         ]
         layer.setRenderer(QgsCategorizedSymbolRenderer("status", cats))
         layer.triggerRepaint()
 
-    def crear_capa_coordenadas(self, capa_centros):
-        """Generates an independent layer with physical coordinate labels (WGS84)."""
-        # 1. Create memory layer with double precision fields
-        capa_coords = QgsVectorLayer("Point?crs=EPSG:4326", "Capa_Coordenadas", "memory")
-        capa_coords.dataProvider().addAttributes([
+    def create_coord_layer(self, centers_layer):
+        """Generates coordinate labels."""
+        c_layer = QgsVectorLayer("Point?crs=EPSG:4326", "Coord_Layer", "memory")
+        c_layer.dataProvider().addAttributes([
             QgsField("LAT_Y", QVariant.Double),
             QgsField("LON_X", QVariant.Double)
         ])
-        capa_coords.updateFields()
+        c_layer.updateFields()
 
-        # 2. Extract points and save coordinates in the attribute table
         feats = []
-        for feat in capa_centros.getFeatures():
+        for feat in centers_layer.getFeatures():
             geom = feat.geometry()
-            p_point = geom.asPoint()
-
+            p = geom.asPoint()
             f = QgsFeature()
             f.setGeometry(geom)
-            # Save with 8 decimals (centimetric precision for GPS)
-            f.setAttributes([round(p_point.y(), 8), round(p_point.x(), 8)])
+            f.setAttributes([round(p.y(), 8), round(p.x(), 8)])
             feats.append(f)
+        c_layer.dataProvider().addFeatures(feats)
 
-        capa_coords.dataProvider().addFeatures(feats)
-
-        # 3. Dynamic labeling configuration (Visualization formula)
         settings = QgsPalLayerSettings()
-        # Displays both DMS (Degree-Minute-Second) and DD (Decimal Degrees)
-        settings.fieldName = "to_dms($y, 'y', 2) || ' ' || to_dms($x, 'x', 2) || '\n' || 'DD: ' || format_number($y, 6) || ', ' || format_number($x, 6)"
-        #settings.fieldName = "'X: ' || format_number($x, 6) || '\n' || 'Y: ' || format_number($y, 6)"
+        settings.fieldName = (
+            "to_dms($y, 'y', 2) || ' ' || to_dms($x, 'x', 2) + "
+            "'\nDD: ' + format_number($y, 6) + ', ' + format_number($x, 6)"
+        )
         settings.isExpression = True
         settings.placement = QgsPalLayerSettings.AroundPoint
-
-        # Collision and zoom control
-        settings.displayAll = False
         settings.scaleVisibility = True
         settings.minimumScale = 2500
 
-        # --- VISUAL STYLE (Black text with white buffer) ---
         txt = QgsTextFormat()
         txt.setSize(12)
         txt.setColor(QColor("black"))
-
         buff = QgsTextBufferSettings()
         buff.setEnabled(True)
         buff.setSize(1.0)
         buff.setColor(QColor("white"))
-
         txt.setBuffer(buff)
         settings.setFormat(txt)
 
-        capa_coords.setLabeling(QgsVectorLayerSimpleLabeling(settings))
-        capa_coords.setLabelsEnabled(True)
-
-        # 4. Set point size to 0 to avoid obscuring Unit_Centers
-        capa_coords.renderer().symbol().setSize(0)
-
-        # 5. Load to project
-        QgsProject.instance().addMapLayer(capa_coords)
+        c_layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+        c_layer.setLabelsEnabled(True)
+        c_layer.renderer().symbol().setSize(0)
+        QgsProject.instance().addMapLayer(c_layer)
