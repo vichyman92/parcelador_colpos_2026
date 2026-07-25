@@ -6,7 +6,7 @@
 name=Diseño de Unidades Agrícolas COLPOS
 qgisMinimumVersion=3.0
 description=Optimización de trazado de unidades de producción para áreas determinadas 
-version=0.4.1
+version=0.4.2
 author=Manuel Vichique A
 email=vichique.manuel@colpos.mx
 
