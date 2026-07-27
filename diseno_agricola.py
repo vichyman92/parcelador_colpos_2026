@@ -2,7 +2,7 @@
 """
 /***************************************************************************
  Parcelador_COLPOS
-                                  A QGIS plugin
+                                 A QGIS plugin
  Agricultural production unit layout optimization for precision farming.
  ***************************************************************************/
 """
@@ -22,8 +22,10 @@ from qgis.core import (
 )
 
 from qgis import processing
+
+# Importación segura sin comodines (F403)
 try:
-    from .resources import *
+    from . import resources
 except ImportError:
     pass
 
@@ -57,7 +59,9 @@ class Parcelador_COLPOS:
 
     def initGui(self):
         """Initialize GUI elements."""
-        icon_path = ':/plugins/parcelador_colpos_2026/icon.png'
+        # Carga directa del archivo icon.png desde la carpeta del plugin
+        icon_path = os.path.join(self.plugin_dir, 'icon.png')
+        
         self.add_action(
             icon_path,
             text=self.tr(u'Parcelero Colpos'),
@@ -65,7 +69,6 @@ class Parcelador_COLPOS:
             parent=self.iface.mainWindow()
         )
         self.first_start = True
-
     def unload(self):
         """Removes plugin from QGIS."""
         for action in self.actions:
@@ -121,7 +124,8 @@ class Parcelador_COLPOS:
             self.first_start = False
             self.dlg = Parcelador_COLPOSDialog()
 
-        if self.dlg.exec_():
+        # Corrección 1: exec() en lugar de exec_() para compatibilidad Qt6
+        if self.dlg.exec():
             layer = self.dlg.mMapLayerComboBox.currentLayer()
             mode = self.dlg.comboBox_modo.currentText()
             shape = self.dlg.comboBox_geometria.currentText()
@@ -135,8 +139,9 @@ class Parcelador_COLPOS:
             draw_coords = self.dlg.checkBox_coordenadas.isChecked()
 
             if not layer:
+                # Corrección 2: Qgis.MessageLevel.Warning para Qt6
                 self.iface.messageBar().pushMessage(
-                    "Error", "Invalid Layer", level=Qgis.Warning
+                    "Error", "Invalid Layer", level=Qgis.MessageLevel.Warning
                 )
                 return
 
@@ -283,7 +288,7 @@ class Parcelador_COLPOS:
                     "discard": 0,    # Mosaicos rojos (< pct_threshold)
                     "util_area": 0.0 # Área acumulada útil
                 }
-                
+
                 n_grid = 2 ** density
                 step = thickness + aisle
                 r_deg = (thickness / 2) / 111000.0
@@ -321,7 +326,7 @@ class Parcelador_COLPOS:
                         inter = u_geom.intersection(geom_parcel)
                         f_area = inter.area() * (111000 ** 2)
                         pct = (f_area / area_ref) * 100
-                        
+
                         # Clasificación según el semáforo de porcentaje
                         if pct >= 99.9:
                             status = "Optimal (Green)"
@@ -385,7 +390,7 @@ class Parcelador_COLPOS:
                 print(f"  Efficiency:        {efficiency:10.2f} %")
                 print("─" * 45)
                 print(f"  Optimal Units (Green):   {stats['optimal']:>6}")
-                print(f"  Suitable Units (Yellow):  {stats['suitable']:>6}")
+                print(f"  Suitable Units (Yellow): {stats['suitable']:>6}")
                 print(f"  Discarded Units (Red):   {stats['discard']:>6}")
                 print(f"  Total Valid Units:       {total_units:>6}")
                 print("═" * 45)
@@ -410,7 +415,8 @@ class Parcelador_COLPOS:
 
         settings = QgsPalLayerSettings()
         settings.fieldName = "Label_ID"
-        settings.placement = QgsPalLayerSettings.AroundPoint
+        # Corrección 3: QgsPalLayerSettings.Placement.AroundPoint
+        settings.placement = QgsPalLayerSettings.Placement.AroundPoint
         txt = QgsTextFormat()
         txt.setSize(12)
         txt.setColor(QColor("black"))
@@ -474,7 +480,8 @@ class Parcelador_COLPOS:
             "'\nDD: ' + format_number($y, 6) + ', ' + format_number($x, 6)"
         )
         settings.isExpression = True
-        settings.placement = QgsPalLayerSettings.AroundPoint
+        # Corrección 4: QgsPalLayerSettings.Placement.AroundPoint
+        settings.placement = QgsPalLayerSettings.Placement.AroundPoint
         settings.scaleVisibility = True
         settings.minimumScale = 2500
 
